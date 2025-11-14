@@ -36,8 +36,8 @@ This tool uses Chrome DevTools browser automation to systematically delete:
 
 1. **Clone or download this repository:**
    ```bash
-   git clone https://github.com/yourusername/x-content-deleter.git
-   cd x-content-deleter
+   git clone https://github.com/yuanhao/tweet-x-deleter.git
+   cd tweet-x-deleter
    ```
 
 2. **Install the skill in Claude Code:**
@@ -147,10 +147,10 @@ The script includes built-in delays to prevent triggering X's rate limits:
 
 ```bash
 # Clone this repo
-git clone https://github.com/yourusername/x-content-deleter.git
+git clone https://github.com/yuanhao/tweet-x-deleter.git
 
 # Copy skill to Claude Code
-cp -r x-content-deleter/.claude/skills/delete-x-content ~/.claude/skills/
+cp -r tweet-x-deleter/.claude/skills/delete-x-content ~/.claude/skills/
 
 # Verify installation
 ls ~/.claude/skills/delete-x-content/
@@ -307,7 +307,7 @@ Want to help others clean up their X accounts?
 ```bash
 # Fork this repo on GitHub
 # Share the link:
-https://github.com/yourusername/x-content-deleter
+https://github.com/yuanhao/tweet-x-deleter
 ```
 
 ### Share Just the Skill

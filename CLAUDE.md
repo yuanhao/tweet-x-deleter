@@ -20,7 +20,7 @@ This file provides guidance to Claude Code when working with the X Content Delet
 ## Project Structure
 
 ```
-x-content-deleter/
+tweet-x-deleter/
 ├── .claude/
 │   └── skills/
 │       └── delete-x-content/
