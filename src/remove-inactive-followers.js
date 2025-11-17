@@ -2,7 +2,9 @@
  * Remove Inactive Followers Script
  *
  * Removes followers who haven't tweeted in a specified period
- * using the block/unblock method (X's only way to remove followers).
+ * using X's "Remove this follower" feature.
+ *
+ * Uses popup windows to check profiles while keeping main script running.
  *
  * Usage: Paste in browser console while on your X followers page
  * URL: https://x.com/yourusername/followers
@@ -11,17 +13,18 @@
 (async () => {
   console.log('🚀 Remove Inactive Followers - Starting...');
   console.log('⚠️  This will remove followers who haven\'t tweeted in 6+ months.');
-  console.log('⚠️  They can re-follow you later if they want.\n');
+  console.log('⚠️  They can re-follow you later if they want.');
+  console.log('⚠️  Allow popups if prompted!\n');
 
   // Configuration
   const CONFIG = {
     inactiveDays: 180,           // 6 months
     delays: {
-      profileLoad: 2000,         // Wait for profile to load
-      betweenClicks: 500,        // Between menu clicks
-      afterAction: 1000,         // After block/unblock
+      popupLoad: 3000,           // Wait for popup to load
+      betweenClicks: 800,        // Between menu clicks
+      afterAction: 2000,         // After removal action
       scrollLoad: 2000,          // Wait for list to load after scroll
-      betweenFollowers: 1000     // Rate limiting between followers
+      betweenFollowers: 3000     // Rate limiting between followers (avoid 429)
     },
     maxEmptyAttempts: 3,
     scrollAmount: 300
@@ -40,60 +43,6 @@
 
   async function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
-  }
-
-  // Parse relative time strings like "2h", "3d", "Apr 15", "Dec 2023"
-  function parseLastTweetDate(timeText) {
-    if (!timeText) return null;
-
-    const now = new Date();
-
-    // Handle relative times: "2h", "5m", "3d"
-    if (timeText.match(/^\d+[smh]$/)) {
-      return now; // Very recent, within hours
-    }
-
-    // Handle "Xd" for days
-    const daysMatch = timeText.match(/^(\d+)d$/);
-    if (daysMatch) {
-      const days = parseInt(daysMatch[1]);
-      return new Date(now - days * 24 * 60 * 60 * 1000);
-    }
-
-    // Handle month + day: "Apr 15", "Dec 3"
-    const monthDayMatch = timeText.match(/^([A-Z][a-z]{2})\s+(\d{1,2})$/);
-    if (monthDayMatch) {
-      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      const monthIndex = months.indexOf(monthDayMatch[1]);
-      const day = parseInt(monthDayMatch[2]);
-
-      if (monthIndex >= 0) {
-        let year = now.getFullYear();
-        const date = new Date(year, monthIndex, day);
-
-        // If date is in future, it's from last year
-        if (date > now) {
-          date.setFullYear(year - 1);
-        }
-        return date;
-      }
-    }
-
-    // Handle month + year: "Dec 2023", "Jan 2022"
-    const monthYearMatch = timeText.match(/^([A-Z][a-z]{2})\s+(\d{4})$/);
-    if (monthYearMatch) {
-      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      const monthIndex = months.indexOf(monthYearMatch[1]);
-      const year = parseInt(monthYearMatch[2]);
-
-      if (monthIndex >= 0) {
-        return new Date(year, monthIndex, 15); // Mid-month estimate
-      }
-    }
-
-    return null;
   }
 
   function isInactive(lastTweetDate) {
@@ -117,7 +66,7 @@
         const href = userLink.getAttribute('href');
         if (href && href.match(/^\/[^\/]+$/) && !href.includes('/status/')) {
           const username = href.substring(1);
-          if (username && !['home', 'explore', 'notifications', 'messages', 'settings'].includes(username)) {
+          if (username && !['home', 'explore', 'notifications', 'messages', 'settings', 'i'].includes(username)) {
             followers.push({
               element: cell,
               username: username
@@ -127,138 +76,127 @@
       }
     }
 
-    return followers;
+    // Deduplicate by username
+    const seen = new Set();
+    return followers.filter(f => {
+      if (seen.has(f.username)) return false;
+      seen.add(f.username);
+      return true;
+    });
   }
 
-  async function checkUserActivity(username) {
-    // Navigate to user profile
-    const profileUrl = `https://x.com/${username}`;
-
-    // Open profile in same tab
-    window.location.href = profileUrl;
-    await delay(CONFIG.delays.profileLoad);
-
-    // Wait for page to load
-    let attempts = 0;
-    while (attempts < 5) {
-      if (window.location.pathname === `/${username}`) {
-        break;
-      }
+  async function waitForPopupLoad(popup, maxAttempts = 10) {
+    for (let i = 0; i < maxAttempts; i++) {
       await delay(500);
-      attempts++;
-    }
-
-    // Find the latest tweet timestamp
-    const tweets = document.querySelectorAll('article[data-testid="tweet"]');
-
-    if (tweets.length === 0) {
-      // No tweets visible - could be private or no tweets
-      return { hasActivity: false, reason: 'no_tweets_visible' };
-    }
-
-    // Get timestamp from first tweet
-    const firstTweet = tweets[0];
-    const timeElement = firstTweet.querySelector('time');
-
-    if (!timeElement) {
-      return { hasActivity: false, reason: 'no_timestamp' };
-    }
-
-    const datetime = timeElement.getAttribute('datetime');
-    if (datetime) {
-      const lastTweetDate = new Date(datetime);
-      const inactive = isInactive(lastTweetDate);
-
-      return {
-        hasActivity: !inactive,
-        lastTweetDate: lastTweetDate,
-        inactive: inactive
-      };
-    }
-
-    return { hasActivity: false, reason: 'parse_error' };
-  }
-
-  async function blockUser(username) {
-    // Click More button (three dots)
-    const moreButton = document.querySelector('[data-testid="userActions"]');
-    if (!moreButton) {
-      return { success: false, error: 'No user actions button' };
-    }
-
-    moreButton.click();
-    await delay(CONFIG.delays.betweenClicks);
-
-    // Find and click Block
-    const menuItems = document.querySelectorAll('[role="menuitem"]');
-    let blockButton = null;
-
-    for (const item of menuItems) {
-      if (item.textContent.includes('Block')) {
-        blockButton = item;
-        break;
+      try {
+        // Check if popup has loaded and has content
+        if (popup.document && popup.document.readyState === 'complete') {
+          // Wait a bit more for dynamic content
+          await delay(CONFIG.delays.popupLoad);
+          return true;
+        }
+      } catch (e) {
+        // Cross-origin or closed - continue waiting
       }
     }
-
-    if (!blockButton) {
-      document.body.click(); // Close menu
-      return { success: false, error: 'No block button found' };
-    }
-
-    blockButton.click();
-    await delay(CONFIG.delays.betweenClicks);
-
-    // Confirm block
-    const confirmButton = document.querySelector('[data-testid="confirmationSheetConfirm"]');
-    if (confirmButton) {
-      confirmButton.click();
-      await delay(CONFIG.delays.afterAction);
-      return { success: true };
-    }
-
-    return { success: false, error: 'No confirm button' };
+    return false;
   }
 
-  async function unblockUser(username) {
-    // Click the Blocked button or More button
-    const blockedButton = document.querySelector('[data-testid="placementTracking"] [role="button"]');
+  async function checkUserActivity(popup, username) {
+    try {
+      const doc = popup.document;
 
-    if (blockedButton && blockedButton.textContent.includes('Blocked')) {
-      blockedButton.click();
+      // Check if account is protected
+      const pageText = doc.body?.innerText || '';
+      if (pageText.includes('These posts are protected') ||
+          pageText.includes('posts are protected')) {
+        return { hasActivity: true, reason: 'protected_account', skip: true };
+      }
+
+      // Find the latest tweet timestamp
+      const tweets = doc.querySelectorAll('article[data-testid="tweet"]');
+
+      if (tweets.length === 0) {
+        // No tweets visible - could be private or no tweets
+        return { hasActivity: false, reason: 'no_tweets_visible' };
+      }
+
+      // Get timestamp from first tweet
+      const firstTweet = tweets[0];
+      const timeElement = firstTweet.querySelector('time');
+
+      if (!timeElement) {
+        return { hasActivity: false, reason: 'no_timestamp' };
+      }
+
+      const datetime = timeElement.getAttribute('datetime');
+      if (datetime) {
+        const lastTweetDate = new Date(datetime);
+        const inactive = isInactive(lastTweetDate);
+
+        return {
+          hasActivity: !inactive,
+          lastTweetDate: lastTweetDate,
+          inactive: inactive
+        };
+      }
+
+      return { hasActivity: false, reason: 'parse_error' };
+    } catch (e) {
+      return { hasActivity: false, reason: 'error: ' + e.message };
+    }
+  }
+
+  async function removeFollower(followerElement, username) {
+    try {
+      // Find the "..." button on the follower's card
+      const moreButton = followerElement.querySelector('[data-testid="userActions"]') ||
+                         followerElement.querySelector('button[aria-label*="More"]') ||
+                         followerElement.querySelector('[role="button"][aria-haspopup="menu"]');
+
+      if (!moreButton) {
+        return { success: false, error: 'No more button on card' };
+      }
+
+      moreButton.click();
       await delay(CONFIG.delays.betweenClicks);
 
-      // Confirm unblock
+      // Find and click "Remove this follower"
+      const menuItems = document.querySelectorAll('[role="menuitem"]');
+      let removeButton = null;
+
+      for (const item of menuItems) {
+        if (item.textContent.includes('Remove this follower')) {
+          removeButton = item;
+          break;
+        }
+      }
+
+      if (!removeButton) {
+        document.body.click(); // Close menu
+        return { success: false, error: 'No remove button found' };
+      }
+
+      removeButton.click();
+      await delay(CONFIG.delays.betweenClicks);
+
+      // Confirm removal
       const confirmButton = document.querySelector('[data-testid="confirmationSheetConfirm"]');
       if (confirmButton) {
         confirmButton.click();
         await delay(CONFIG.delays.afterAction);
         return { success: true };
       }
+
+      return { success: false, error: 'No confirm button' };
+    } catch (e) {
+      return { success: false, error: e.message };
     }
-
-    // Alternative: use More menu
-    const moreButton = document.querySelector('[data-testid="userActions"]');
-    if (moreButton) {
-      moreButton.click();
-      await delay(CONFIG.delays.betweenClicks);
-
-      const menuItems = document.querySelectorAll('[role="menuitem"]');
-      for (const item of menuItems) {
-        if (item.textContent.includes('Unblock')) {
-          item.click();
-          await delay(CONFIG.delays.afterAction);
-          return { success: true };
-        }
-      }
-    }
-
-    return { success: false, error: 'Could not unblock' };
   }
 
-  // Store original URL to return to
-  const followersUrl = window.location.href;
-
-  if (!followersUrl.includes('/followers')) {
+  // Check we're on followers page
+  const currentUrl = window.location.href;
+  if (!currentUrl.includes('/followers')) {
     console.error('❌ Please run this script on your followers page!');
     console.log('   Go to: https://x.com/yourusername/followers');
     return;
@@ -299,32 +237,53 @@
 
     console.log(`📋 Checking @${follower.username}...`);
 
+    let popup = null;
     try {
-      // Check user activity
-      const activity = await checkUserActivity(follower.username);
+      // Open profile in popup
+      const profileUrl = `https://x.com/${follower.username}`;
+      popup = window.open(profileUrl, 'followerCheck', 'width=800,height=600');
 
-      if (activity.inactive) {
+      if (!popup) {
+        console.log(`   ❌ Popup blocked! Please allow popups for x.com`);
+        performance.totalFailed++;
+        performance.errors.push(`Popup blocked: ${follower.username}`);
+        continue;
+      }
+
+      // Wait for popup to load
+      const loaded = await waitForPopupLoad(popup);
+      if (!loaded) {
+        console.log(`   ❌ Popup failed to load`);
+        performance.totalFailed++;
+        performance.errors.push(`Load failed: ${follower.username}`);
+        popup.close();
+        continue;
+      }
+
+      // Check user activity
+      const activity = await checkUserActivity(popup, follower.username);
+
+      // Close popup first
+      popup.close();
+
+      // Skip protected accounts
+      if (activity.skip) {
+        performance.totalSkipped++;
+        console.log(`   🔒 Skipped (${activity.reason || 'protected account'})`);
+      } else if (activity.inactive) {
         console.log(`   ⏰ Inactive since ${activity.lastTweetDate?.toLocaleDateString() || 'unknown'}`);
 
-        // Block then unblock
-        const blockResult = await blockUser(follower.username);
+        // Remove follower using the menu on the followers page
+        const removeResult = await removeFollower(follower.element, follower.username);
 
-        if (blockResult.success) {
-          const unblockResult = await unblockUser(follower.username);
-
-          if (unblockResult.success) {
-            performance.totalRemoved++;
-            performance.removedUsers.push(follower.username);
-            console.log(`   ✅ Removed @${follower.username}`);
-          } else {
-            performance.totalFailed++;
-            performance.errors.push(`Unblock failed: ${follower.username}`);
-            console.log(`   ⚠️  Blocked but failed to unblock @${follower.username}`);
-          }
+        if (removeResult.success) {
+          performance.totalRemoved++;
+          performance.removedUsers.push(follower.username);
+          console.log(`   ✅ Removed @${follower.username}`);
         } else {
           performance.totalFailed++;
-          performance.errors.push(`Block failed: ${follower.username} - ${blockResult.error}`);
-          console.log(`   ❌ Failed to block @${follower.username}: ${blockResult.error}`);
+          performance.errors.push(`Remove failed: ${follower.username} - ${removeResult.error}`);
+          console.log(`   ❌ Failed to remove @${follower.username}: ${removeResult.error}`);
         }
       } else {
         performance.totalSkipped++;
@@ -334,10 +293,6 @@
           console.log(`   ✓ Skipped (${activity.reason || 'could not determine activity'})`);
         }
       }
-
-      // Navigate back to followers list
-      window.location.href = followersUrl;
-      await delay(CONFIG.delays.profileLoad);
 
       // Log progress every 10 checks
       if (performance.totalChecked % 10 === 0) {
@@ -351,9 +306,10 @@
       performance.errors.push(`Error: ${follower.username} - ${error.message}`);
       console.log(`   ❌ Error checking @${follower.username}: ${error.message}`);
 
-      // Try to get back to followers list
-      window.location.href = followersUrl;
-      await delay(CONFIG.delays.profileLoad);
+      // Close popup if still open
+      if (popup && !popup.closed) {
+        popup.close();
+      }
     }
 
     // Rate limiting
