@@ -14,10 +14,10 @@
  */
 const CONFIG = {
   delays: {
-    betweenClicks: 500,      // ms between menu clicks
-    afterDeletion: 1000,     // ms after confirming deletion
-    scrollLoad: 3000,        // ms to wait for content to load after scroll
-    rateLimitSafe: 1000      // ms between each tweet deletion
+    betweenClicks: 300,      // ms between menu clicks
+    afterDeletion: 800,      // ms after confirming deletion
+    scrollLoad: 2000,        // ms to wait for content to load after scroll
+    rateLimitSafe: 500       // ms between each tweet deletion
   },
   selectors: {
     tweet: 'article[data-testid="tweet"]',
@@ -420,10 +420,10 @@ if (typeof module !== 'undefined' && module.exports) {
  *
  *   const CONFIG = {
  *     delays: {
- *       betweenClicks: 500,
- *       afterDeletion: 1000,
- *       scrollLoad: 3000,
- *       rateLimitSafe: 1000
+ *       betweenClicks: 300,
+ *       afterDeletion: 800,
+ *       scrollLoad: 2000,
+ *       rateLimitSafe: 500
  *     },
  *     maxEmptyAttempts: 5,
  *     scrollAmount: 300
