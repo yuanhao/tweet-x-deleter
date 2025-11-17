@@ -396,7 +396,7 @@ if (typeof module !== 'undefined' && module.exports) {
 }
 
 /**
- * Console Usage Example:
+ * Console Usage Example with Performance Logging:
  *
  * If running directly in browser console (alternative to MCP):
  *
@@ -405,37 +405,184 @@ if (typeof module !== 'undefined' && module.exports) {
  * // 3. Run:
  *
  * (async () => {
- *   // Manual browser-based deletion (no MCP)
- *   const tweets = document.querySelectorAll('article[data-testid="tweet"]');
+ *   console.log('🚀 X Content Deleter - Starting...');
+ *   console.log('⚠️  This will delete ALL visible content. Press Ctrl+C to stop anytime.\n');
  *
- *   for (let i = 0; i < tweets.length; i++) {
- *     const tweet = tweets[i];
+ *   // Performance tracking
+ *   const performance = {
+ *     startTime: Date.now(),
+ *     totalDeleted: 0,
+ *     totalFailed: 0,
+ *     consecutiveEmpty: 0,
+ *     deletionTimes: [],
+ *     errors: []
+ *   };
  *
- *     // Click More button
- *     const moreBtn = tweet.querySelector('[data-testid="caret"]');
- *     if (moreBtn) {
- *       moreBtn.click();
- *       await new Promise(r => setTimeout(r, 500));
+ *   const CONFIG = {
+ *     delays: {
+ *       betweenClicks: 500,
+ *       afterDeletion: 1000,
+ *       scrollLoad: 3000,
+ *       rateLimitSafe: 1000
+ *     },
+ *     maxEmptyAttempts: 5,
+ *     scrollAmount: 300
+ *   };
  *
- *       // Click Delete
- *       const deleteBtn = document.querySelector('[role="menuitem"]');
- *       if (deleteBtn && deleteBtn.textContent.includes('Delete')) {
- *         deleteBtn.click();
- *         await new Promise(r => setTimeout(r, 500));
+ *   async function delay(ms) {
+ *     return new Promise(resolve => setTimeout(resolve, ms));
+ *   }
  *
- *         // Confirm
- *         const confirmBtn = document.querySelector('[data-testid="confirmationSheetConfirm"]');
+ *   async function deleteTweet(tweet) {
+ *     const deleteStart = Date.now();
+ *
+ *     try {
+ *       // Check if it's a repost first
+ *       const unretweetBtn = tweet.querySelector('[data-testid="unretweet"]');
+ *       if (unretweetBtn) {
+ *         unretweetBtn.click();
+ *         await delay(CONFIG.delays.betweenClicks);
+ *
+ *         const confirmBtn = document.querySelector('[data-testid="unretweetConfirm"]');
  *         if (confirmBtn) {
  *           confirmBtn.click();
- *           await new Promise(r => setTimeout(r, 1000));
- *           console.log(`Deleted ${i + 1}`);
+ *           await delay(CONFIG.delays.afterDeletion);
+ *
+ *           const deleteTime = Date.now() - deleteStart;
+ *           performance.deletionTimes.push(deleteTime);
+ *           return { success: true, time: deleteTime, type: 'repost' };
  *         }
+ *       }
+ *
+ *       // Regular post/reply deletion
+ *       const moreBtn = tweet.querySelector('[data-testid="caret"]');
+ *       if (!moreBtn) {
+ *         return { success: false, error: 'No More button found' };
+ *       }
+ *
+ *       moreBtn.click();
+ *       await delay(CONFIG.delays.betweenClicks);
+ *
+ *       // Find Delete button in menu
+ *       const menuItems = document.querySelectorAll('[role="menuitem"]');
+ *       let deleteBtn = null;
+ *       for (const item of menuItems) {
+ *         if (item.textContent.includes('Delete')) {
+ *           deleteBtn = item;
+ *           break;
+ *         }
+ *       }
+ *
+ *       if (!deleteBtn) {
+ *         document.body.click(); // Close menu
+ *         return { success: false, error: 'No Delete button (not your tweet?)' };
+ *       }
+ *
+ *       deleteBtn.click();
+ *       await delay(CONFIG.delays.betweenClicks);
+ *
+ *       // Confirm deletion
+ *       const confirmBtn = document.querySelector('[data-testid="confirmationSheetConfirm"]');
+ *       if (confirmBtn) {
+ *         confirmBtn.click();
+ *         await delay(CONFIG.delays.afterDeletion);
+ *
+ *         const deleteTime = Date.now() - deleteStart;
+ *         performance.deletionTimes.push(deleteTime);
+ *         return { success: true, time: deleteTime, type: 'post/reply' };
+ *       }
+ *
+ *       return { success: false, error: 'No confirmation button' };
+ *
+ *     } catch (error) {
+ *       return { success: false, error: error.message };
+ *     }
+ *   }
+ *
+ *   // Main loop
+ *   console.log('▶️  Starting deletion process...\n');
+ *
+ *   while (true) {
+ *     const tweets = document.querySelectorAll('article[data-testid="tweet"]');
+ *
+ *     if (tweets.length === 0) {
+ *       performance.consecutiveEmpty++;
+ *       console.log(`⏳ No tweets found (attempt ${performance.consecutiveEmpty}/${CONFIG.maxEmptyAttempts})`);
+ *
+ *       if (performance.consecutiveEmpty >= CONFIG.maxEmptyAttempts) {
+ *         break; // Stop processing
+ *       }
+ *
+ *       // Scroll and try again
+ *       window.scrollBy(0, CONFIG.scrollAmount);
+ *       await delay(CONFIG.delays.scrollLoad);
+ *       continue;
+ *     }
+ *
+ *     // Reset empty counter
+ *     performance.consecutiveEmpty = 0;
+ *
+ *     // Process first tweet
+ *     const tweet = tweets[0];
+ *     const result = await deleteTweet(tweet);
+ *
+ *     if (result.success) {
+ *       performance.totalDeleted++;
+ *
+ *       // Log progress every 10 deletions
+ *       if (performance.totalDeleted % 10 === 0) {
+ *         const elapsed = (Date.now() - performance.startTime) / 1000;
+ *         const rate = (performance.totalDeleted / elapsed * 60).toFixed(1);
+ *         console.log(`✅ Deleted ${performance.totalDeleted} items (${rate}/min) - Last: ${result.time}ms`);
+ *       }
+ *     } else {
+ *       performance.totalFailed++;
+ *       performance.errors.push(result.error);
+ *
+ *       if (performance.totalFailed % 5 === 0) {
+ *         console.log(`⚠️  Failed: ${performance.totalFailed} (${result.error})`);
  *       }
  *     }
  *
- *     // Scroll to load more
- *     window.scrollBy(0, 150);
- *     await new Promise(r => setTimeout(r, 3000));
+ *     // Rate limiting protection
+ *     await delay(CONFIG.delays.rateLimitSafe);
+ *
+ *     // Scroll to refresh
+ *     window.scrollBy(0, CONFIG.scrollAmount);
+ *     await delay(CONFIG.delays.scrollLoad);
  *   }
+ *
+ *   // Performance Summary
+ *   const totalTime = (Date.now() - performance.startTime) / 1000;
+ *   const avgDeletionTime = performance.deletionTimes.length > 0
+ *     ? (performance.deletionTimes.reduce((a, b) => a + b, 0) / performance.deletionTimes.length).toFixed(0)
+ *     : 0;
+ *   const deletionsPerMinute = (performance.totalDeleted / totalTime * 60).toFixed(1);
+ *
+ *   console.log('\n🎉 Deletion complete!');
+ *   console.log('\n📊 Performance Summary:');
+ *   console.log(`   Total deleted: ${performance.totalDeleted}`);
+ *   console.log(`   Total failed: ${performance.totalFailed}`);
+ *   console.log(`   Success rate: ${((performance.totalDeleted / (performance.totalDeleted + performance.totalFailed)) * 100).toFixed(1)}%`);
+ *   console.log(`   Total time: ${(totalTime / 60).toFixed(1)} minutes`);
+ *   console.log(`   Avg deletion time: ${avgDeletionTime}ms`);
+ *   console.log(`   Deletion rate: ${deletionsPerMinute} per minute`);
+ *
+ *   if (performance.errors.length > 0) {
+ *     console.log('\n⚠️  Common errors:');
+ *     const errorCounts = {};
+ *     performance.errors.forEach(err => {
+ *       errorCounts[err] = (errorCounts[err] || 0) + 1;
+ *     });
+ *     Object.entries(errorCounts).forEach(([err, count]) => {
+ *       console.log(`   ${err}: ${count}x`);
+ *     });
+ *   }
+ *
+ *   console.log('\n💡 Tips:');
+ *   console.log('  - Refresh the page to load more content if needed');
+ *   console.log('  - Navigate to /username/with_replies to delete replies');
+ *   console.log('  - X cache may take 24-48 hours to fully clear');
+ *
  * })();
  */
