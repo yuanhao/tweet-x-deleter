@@ -20,11 +20,11 @@
   const CONFIG = {
     inactiveDays: 180,           // 6 months
     delays: {
-      popupLoad: 3000,           // Wait for popup to load
-      betweenClicks: 800,        // Between menu clicks
-      afterAction: 2000,         // After removal action
-      scrollLoad: 2000,          // Wait for list to load after scroll
-      betweenFollowers: 3000     // Rate limiting between followers (avoid 429)
+      popupLoad: 4000,           // Wait for popup to load
+      betweenClicks: 1000,       // Between menu clicks
+      afterAction: 3000,         // After removal action
+      scrollLoad: 3000,          // Wait for list to load after scroll
+      betweenFollowers: 6000     // Rate limiting between followers (avoid 429)
     },
     maxEmptyAttempts: 3,
     scrollAmount: 300
