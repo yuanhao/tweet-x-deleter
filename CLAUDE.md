@@ -26,7 +26,8 @@ tweet-x-deleter/
 │       └── delete-x-content/
 │           └── skill.md              # Claude Code skill - main entry point
 ├── src/
-│   └── delete-x-content.js           # Core automation logic & helper functions
+│   ├── delete-x-content.js           # Core automation logic & helper functions
+│   └── remove-inactive-followers.js  # Remove inactive followers script
 ├── README.md                          # User-facing documentation
 ├── LICENSE                            # MIT + disclaimers
 ├── CLAUDE.md                          # This file - developer guidance

@@ -4,11 +4,17 @@ Automate deletion of all posts, replies, and reposts from your X (Twitter) accou
 
 ## 🎯 What This Does
 
-This tool uses Chrome DevTools browser automation to systematically delete:
+This tool uses Chrome DevTools browser automation to systematically:
 
+**Delete Content:**
 - ✅ **All Posts** - Your original tweets
 - ✅ **All Replies** - Responses to other users
 - ✅ **All Reposts** - Retweets/reposts
+
+**Manage Followers:**
+- ✅ **Remove Inactive Followers** - Followers who haven't tweeted in 6+ months
+
+**Features:**
 - ✅ Works for accounts with <10,000 items (tested up to 1,000 items)
 - ✅ No API keys or third-party services needed
 - ✅ Free and open source
@@ -210,6 +216,32 @@ ls ~/.claude/skills/delete-x-content/
    - Click "Replies" tab on your profile
    - Run script again
    - Check "Media" if needed
+
+### Remove Inactive Followers
+
+Remove followers who haven't tweeted in 6+ months:
+
+1. **Navigate to your followers page:**
+   ```
+   https://x.com/yourusername/followers
+   ```
+
+2. **Open Console** (`F12` or `Cmd+Option+J`)
+
+3. **Paste the script** from [`src/remove-inactive-followers.js`](src/remove-inactive-followers.js)
+
+4. **Watch it run:**
+   - Checks each follower's last tweet date
+   - Removes inactive followers via block/unblock
+   - Shows progress: checked, removed, skipped
+
+**How it works:**
+- Navigates to each follower's profile
+- Checks their last tweet date
+- If inactive > 6 months: blocks then unblocks (removes follow)
+- They can re-follow you later if they become active
+
+**Estimated time:** ~8-12 seconds per follower
 
 ## 🔧 Troubleshooting
 
