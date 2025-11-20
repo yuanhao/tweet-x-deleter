@@ -4,7 +4,7 @@ Automate deletion of all posts, replies, and reposts from your X (Twitter) accou
 
 ## 🎯 What This Does
 
-This tool uses Chrome DevTools browser automation to systematically:
+This tool uses Playwright browser automation to systematically:
 
 **Delete Content:**
 - ✅ **All Posts** - Your original tweets
@@ -36,7 +36,7 @@ This tool uses Chrome DevTools browser automation to systematically:
 
 **Requirements:**
 - [Claude Code](https://claude.com/code) installed
-- Chrome browser with [chrome-devtools MCP server](https://github.com/modelcontextprotocol/servers/tree/main/src/chrome-devtools) configured
+- [Playwright MCP server](https://github.com/microsoft/playwright-mcp) configured
 
 **Steps:**
 
@@ -63,6 +63,7 @@ This tool uses Chrome DevTools browser automation to systematically:
 
 4. **Follow the prompts:**
    - Confirm you've backed up your data
+   - Log into X in the Playwright browser window
    - Provide your X username
    - Let it run (20-60 minutes for 1,000 items)
 
@@ -132,10 +133,10 @@ The script includes built-in delays to prevent triggering X's rate limits:
    - Visit [claude.com/code](https://claude.com/code)
    - Follow installation instructions
 
-2. **Install chrome-devtools MCP Server:**
+2. **Install Playwright MCP Server:**
    ```bash
    # Install the MCP server
-   npm install -g @modelcontextprotocol/server-chrome-devtools
+   npm install -g @anthropic-ai/mcp-server-playwright
 
    # Or via Claude Code MCP configuration
    # Add to your Claude Code config file
@@ -143,7 +144,7 @@ The script includes built-in delays to prevent triggering X's rate limits:
 
 3. **Configure MCP in Claude Code:**
    - Open Claude Code settings
-   - Add chrome-devtools to MCP servers
+   - Add playwright to MCP servers
    - Restart Claude Code
 
 **For Console Script Usage:**
@@ -400,12 +401,12 @@ MIT License - See [LICENSE](LICENSE) file for details.
 **Inspired by:**
 - [@lucahammer](https://github.com/lucahammer) - Original X deletion scripts
 - Community-driven X automation research
-- MCP Chrome DevTools project
+- Playwright MCP project
 
 **Built with:**
 - [Claude Code](https://claude.com/code)
 - [Model Context Protocol](https://modelcontextprotocol.io/)
-- Chrome DevTools Protocol
+- [Playwright](https://playwright.dev/)
 
 ## ⚖️ Legal Disclaimer
 

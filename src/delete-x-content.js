@@ -2,7 +2,7 @@
  * X Content Deletion Automation Script
  *
  * This script provides functions for automating deletion of X (Twitter) content
- * using browser automation via MCP Chrome DevTools.
+ * using browser automation via Playwright MCP.
  *
  * Usage: This is a reference implementation showing the automation pattern.
  * In practice, Claude Code will use MCP tools directly, but this serves as
@@ -61,25 +61,28 @@ function getProfileUrl(username, contentType) {
 /**
  * Parse snapshot to find tweet elements
  * This is a simplified version - actual implementation would parse
- * the MCP snapshot structure
- * @param {object} snapshot - Snapshot from mcp__chrome-devtools__take_snapshot
- * @returns {array} Array of tweet element UIDs
+ * the Playwright MCP snapshot structure
+ * @param {object} snapshot - Snapshot from mcp__playwright__browser_snapshot
+ * @returns {array} Array of tweet element refs
  */
 function findTweetElements(snapshot) {
-  // In actual implementation, parse snapshot.content to find elements
-  // with data-testid="tweet" and extract their UIDs
+  // In actual implementation, parse snapshot content to find elements
+  // that represent tweets and extract their refs
+  // Playwright snapshots use 'ref' attributes instead of 'uid'
 
   // Example structure (simplified):
   const tweets = [];
-  const lines = snapshot.content ? snapshot.content.split('\n') : [];
+  const content = snapshot.content || snapshot || '';
+  const lines = typeof content === 'string' ? content.split('\n') : [];
 
   for (const line of lines) {
-    // Look for tweet containers in snapshot
-    if (line.includes('article') && line.match(/uid=["']([^"']+)["']/)) {
-      const match = line.match(/uid=["']([^"']+)["']/);
+    // Look for tweet containers in snapshot (article elements)
+    // Playwright uses ref="X" format where X is the element reference
+    if (line.includes('article') && line.match(/ref="([^"]+)"/)) {
+      const match = line.match(/ref="([^"]+)"/);
       if (match) {
         tweets.push({
-          uid: match[1],
+          ref: match[1],
           text: line
         });
       }
@@ -90,32 +93,33 @@ function findTweetElements(snapshot) {
 }
 
 /**
- * Find the "More" button UID within a tweet element
+ * Find the "More" button ref within a tweet element
  * @param {object} snapshot - Current page snapshot
- * @param {object} tweet - Tweet object with UID
- * @returns {string|null} UID of more button, or null if not found
+ * @param {object} tweet - Tweet object with ref
+ * @returns {string|null} ref of more button, or null if not found
  */
 function findMoreButtonInTweet(snapshot, tweet) {
-  // Parse snapshot to find caret/more button within the tweet's UID context
+  // Parse snapshot to find caret/more button within the tweet's ref context
   // This would need to parse the hierarchical structure of the snapshot
 
-  const lines = snapshot.content ? snapshot.content.split('\n') : [];
+  const content = snapshot.content || snapshot || '';
+  const lines = typeof content === 'string' ? content.split('\n') : [];
   let inTweetContext = false;
 
   for (const line of lines) {
-    if (line.includes(tweet.uid)) {
+    if (line.includes(tweet.ref)) {
       inTweetContext = true;
     }
 
     if (inTweetContext && (line.includes('More') || line.includes('caret'))) {
-      const match = line.match(/uid=["']([^"']+)["']/);
+      const match = line.match(/ref="([^"]+)"/);
       if (match) {
         return match[1];
       }
     }
 
     // Exit tweet context when we hit next tweet or end of section
-    if (inTweetContext && line.includes('article') && !line.includes(tweet.uid)) {
+    if (inTweetContext && line.includes('article') && !line.includes(tweet.ref)) {
       break;
     }
   }
@@ -126,15 +130,16 @@ function findMoreButtonInTweet(snapshot, tweet) {
 /**
  * Find delete button in menu
  * @param {object} snapshot - Snapshot after opening menu
- * @returns {string|null} UID of delete button
+ * @returns {string|null} ref of delete button
  */
 function findDeleteButton(snapshot) {
-  const lines = snapshot.content ? snapshot.content.split('\n') : [];
+  const content = snapshot.content || snapshot || '';
+  const lines = typeof content === 'string' ? content.split('\n') : [];
 
   for (const line of lines) {
     if ((line.includes('Delete') || line.includes('delete')) &&
-        line.match(/uid=["']([^"']+)["']/)) {
-      const match = line.match(/uid=["']([^"']+)["']/);
+        line.match(/ref="([^"]+)"/)) {
+      const match = line.match(/ref="([^"]+)"/);
       if (match) {
         return match[1];
       }
@@ -159,23 +164,23 @@ function isRepost(tweet) {
 }
 
 /**
- * Main deletion function using MCP Chrome DevTools
+ * Main deletion function using Playwright MCP
  *
  * This is pseudocode showing the pattern. In actual use, Claude Code
  * will call the MCP tools directly.
  *
- * @param {object} mcpTools - MCP Chrome DevTools tool functions
+ * @param {object} mcpTools - Playwright MCP tool functions
  * @param {string} username - X username
  * @param {string} contentType - Type of content to delete
  * @returns {number} Number of items deleted
  */
 async function deleteContent(mcpTools, username, contentType) {
   const {
-    navigate_page,
-    take_snapshot,
-    click,
-    handle_dialog,
-    evaluate_script
+    browser_navigate,
+    browser_snapshot,
+    browser_click,
+    browser_handle_dialog,
+    browser_evaluate
   } = mcpTools;
 
   let deletedCount = 0;
@@ -185,7 +190,7 @@ async function deleteContent(mcpTools, username, contentType) {
 
   // Navigate to the correct profile tab
   const url = getProfileUrl(username, contentType);
-  await navigate_page({ type: 'url', url });
+  await browser_navigate({ url });
   await delay(CONFIG.delays.scrollLoad);
 
   console.log(`Starting deletion of ${contentType} for @${username}`);
@@ -193,7 +198,7 @@ async function deleteContent(mcpTools, username, contentType) {
 
   while (hasMore) {
     // Take snapshot to find tweets
-    const snapshot = await take_snapshot();
+    const snapshot = await browser_snapshot();
     const tweets = findTweetElements(snapshot);
 
     if (tweets.length === 0) {
@@ -206,7 +211,7 @@ async function deleteContent(mcpTools, username, contentType) {
       }
 
       // Try scrolling to load more
-      await evaluate_script({
+      await browser_evaluate({
         function: '() => { window.scrollBy(0, 300); }'
       });
       await delay(CONFIG.delays.scrollLoad);
@@ -223,16 +228,16 @@ async function deleteContent(mcpTools, username, contentType) {
       // Handle reposts differently
       if (isRepost(tweet)) {
         // For reposts, look for unretweet button
-        const unretweetUid = findUnretweetButton(snapshot, tweet);
-        if (unretweetUid) {
-          await click({ uid: unretweetUid });
+        const unretweetRef = findUnretweetButton(snapshot, tweet);
+        if (unretweetRef) {
+          await browser_click({ element: 'Unretweet button', ref: unretweetRef });
           await delay(CONFIG.delays.betweenClicks);
 
           // Confirm unretweet
-          const confirmSnapshot = await take_snapshot();
-          const confirmUid = findUnretweetConfirmButton(confirmSnapshot);
-          if (confirmUid) {
-            await click({ uid: confirmUid });
+          const confirmSnapshot = await browser_snapshot();
+          const confirmRef = findUnretweetConfirmButton(confirmSnapshot);
+          if (confirmRef) {
+            await browser_click({ element: 'Confirm unretweet', ref: confirmRef });
             await delay(CONFIG.delays.afterDeletion);
             deletedCount++;
           }
@@ -241,31 +246,36 @@ async function deleteContent(mcpTools, username, contentType) {
         // Regular deletion flow for posts and replies
 
         // Find and click More button
-        const moreButtonUid = findMoreButtonInTweet(snapshot, tweet);
-        if (!moreButtonUid) {
+        const moreButtonRef = findMoreButtonInTweet(snapshot, tweet);
+        if (!moreButtonRef) {
           console.log('Could not find More button, skipping tweet');
           continue;
         }
 
-        await click({ uid: moreButtonUid });
+        await browser_click({ element: 'More options', ref: moreButtonRef });
         await delay(CONFIG.delays.betweenClicks);
 
         // Take new snapshot to find delete button in menu
-        const menuSnapshot = await take_snapshot();
-        const deleteButtonUid = findDeleteButton(menuSnapshot);
+        const menuSnapshot = await browser_snapshot();
+        const deleteButtonRef = findDeleteButton(menuSnapshot);
 
-        if (!deleteButtonUid) {
+        if (!deleteButtonRef) {
           console.log('Could not find Delete button in menu, skipping');
           // Close menu by clicking elsewhere or pressing Escape
           continue;
         }
 
-        await click({ uid: deleteButtonUid });
+        await browser_click({ element: 'Delete', ref: deleteButtonRef });
         await delay(CONFIG.delays.betweenClicks);
 
-        // Handle confirmation dialog
-        await handle_dialog({ action: 'accept' });
-        await delay(CONFIG.delays.afterDeletion);
+        // Take snapshot to find confirmation button
+        const confirmSnapshot = await browser_snapshot();
+        const confirmButtonRef = findConfirmButton(confirmSnapshot);
+
+        if (confirmButtonRef) {
+          await browser_click({ element: 'Confirm deletion', ref: confirmButtonRef });
+          await delay(CONFIG.delays.afterDeletion);
+        }
 
         deletedCount++;
       }
@@ -283,14 +293,14 @@ async function deleteContent(mcpTools, username, contentType) {
       // Continue to next iteration
 
       // Scroll a bit to move past problematic tweet
-      await evaluate_script({
+      await browser_evaluate({
         function: '() => { window.scrollBy(0, 150); }'
       });
       await delay(CONFIG.delays.scrollLoad);
     }
 
     // Scroll to refresh and load new content
-    await evaluate_script({
+    await browser_evaluate({
       function: `() => { window.scrollBy(0, ${CONFIG.scrollAmount}); }`
     });
     await delay(CONFIG.delays.scrollLoad);
@@ -301,8 +311,32 @@ async function deleteContent(mcpTools, username, contentType) {
 }
 
 /**
+ * Find confirmation button for deletion
+ * @param {object} snapshot - Snapshot after clicking delete
+ * @returns {string|null} ref of confirm button
+ */
+function findConfirmButton(snapshot) {
+  const content = snapshot.content || snapshot || '';
+  const lines = typeof content === 'string' ? content.split('\n') : [];
+
+  for (const line of lines) {
+    // Look for confirmation button - usually "Delete" in a dialog
+    if ((line.includes('confirmationSheetConfirm') ||
+         (line.includes('Delete') && line.includes('button'))) &&
+        line.match(/ref="([^"]+)"/)) {
+      const match = line.match(/ref="([^"]+)"/);
+      if (match) {
+        return match[1];
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
  * Delete all content types
- * @param {object} mcpTools - MCP Chrome DevTools tool functions
+ * @param {object} mcpTools - Playwright MCP tool functions
  * @param {string} username - X username (without @)
  * @returns {object} Summary of deletions
  */
@@ -339,22 +373,23 @@ async function deleteAllContent(mcpTools, username) {
  * Utility: Find unretweet button for reposts
  */
 function findUnretweetButton(snapshot, tweet) {
-  const lines = snapshot.content ? snapshot.content.split('\n') : [];
+  const content = snapshot.content || snapshot || '';
+  const lines = typeof content === 'string' ? content.split('\n') : [];
   let inTweetContext = false;
 
   for (const line of lines) {
-    if (line.includes(tweet.uid)) {
+    if (line.includes(tweet.ref)) {
       inTweetContext = true;
     }
 
     if (inTweetContext && line.includes('unretweet')) {
-      const match = line.match(/uid=["']([^"']+)["']/);
+      const match = line.match(/ref="([^"]+)"/);
       if (match) {
         return match[1];
       }
     }
 
-    if (inTweetContext && line.includes('article') && !line.includes(tweet.uid)) {
+    if (inTweetContext && line.includes('article') && !line.includes(tweet.ref)) {
       break;
     }
   }
@@ -366,11 +401,13 @@ function findUnretweetButton(snapshot, tweet) {
  * Utility: Find unretweet confirmation button
  */
 function findUnretweetConfirmButton(snapshot) {
-  const lines = snapshot.content ? snapshot.content.split('\n') : [];
+  const content = snapshot.content || snapshot || '';
+  const lines = typeof content === 'string' ? content.split('\n') : [];
 
   for (const line of lines) {
-    if (line.includes('Undo') && line.match(/uid=["']([^"']+)["']/)) {
-      const match = line.match(/uid=["']([^"']+)["']/);
+    if ((line.includes('Undo') || line.includes('unretweetConfirm')) &&
+        line.match(/ref="([^"]+)"/)) {
+      const match = line.match(/ref="([^"]+)"/);
       if (match) {
         return match[1];
       }
@@ -391,7 +428,8 @@ if (typeof module !== 'undefined' && module.exports) {
     getProfileUrl,
     findTweetElements,
     findMoreButtonInTweet,
-    findDeleteButton
+    findDeleteButton,
+    findConfirmButton
   };
 }
 

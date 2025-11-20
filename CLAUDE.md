@@ -8,7 +8,7 @@ This file provides guidance to Claude Code when working with the X Content Delet
 
 **Tech Stack:**
 - Pure JavaScript (browser automation)
-- MCP Chrome DevTools integration
+- Playwright MCP integration
 - Claude Code skill system
 
 **Target Users:**
@@ -198,7 +198,7 @@ tweet-x-deleter/
 - Absolute positions (layout changes)
 
 **When X changes UI:**
-1. Open X in Chrome DevTools
+1. Open X in browser DevTools
 2. Inspect the new element structure
 3. Find new `data-testid` values
 4. Update `CONFIG.selectors` in `src/delete-x-content.js`
@@ -234,44 +234,45 @@ tweet-x-deleter/
 **Current implementation:** Posts + Replies
 **Future:** Could add Likes, Media
 
-## MCP Chrome DevTools Integration
+## Playwright MCP Integration
 
 ### Available Tools
 
 **Navigation:**
-- `mcp__chrome-devtools__navigate_page` - Go to URLs
-- `mcp__chrome-devtools__list_pages` - Check open pages
-- `mcp__chrome-devtools__new_page` - Open new tab
+- `mcp__playwright__browser_navigate` - Go to URLs
+- `mcp__playwright__browser_tabs` - List/manage browser tabs
 
 **Interaction:**
-- `mcp__chrome-devtools__take_snapshot` - Get page structure
-- `mcp__chrome-devtools__click` - Click elements by UID
-- `mcp__chrome-devtools__handle_dialog` - Confirm/dismiss dialogs
-- `mcp__chrome-devtools__evaluate_script` - Run JavaScript (for scrolling)
+- `mcp__playwright__browser_snapshot` - Get page accessibility tree
+- `mcp__playwright__browser_click` - Click elements by ref
+- `mcp__playwright__browser_handle_dialog` - Confirm/dismiss dialogs
+- `mcp__playwright__browser_evaluate` - Run JavaScript (for scrolling)
+- `mcp__playwright__browser_type` - Type into elements
 
 **Key pattern:**
-1. Take snapshot → Find UIDs → Click UID → Delay → Repeat
+1. Take snapshot → Find refs → Click ref → Delay → Repeat
 
 ### Snapshot Parsing
 
-**Challenge:** MCP snapshots return accessibility tree as text, not DOM
+**Challenge:** Playwright snapshots return accessibility tree as text, not DOM
 
 **Our approach:**
 1. Parse text to find element patterns
-2. Extract UID values using regex
-3. Match UIDs to tweet containers
-4. Find nested UIDs (More button within tweet)
+2. Extract ref values using regex
+3. Match refs to tweet containers
+4. Find nested refs (More button within tweet)
 
 **Example snapshot line:**
 ```
-article uid="abc123" tweet by @username: "Tweet text..."
-  button uid="xyz789" label="More"
+article ref="E1" tweet by @username: "Tweet text..."
+  button ref="E2" label="More"
 ```
 
 **Helper functions:**
-- `findTweetElements(snapshot)` - Extract tweet UIDs
-- `findMoreButtonInTweet(snapshot, tweet)` - Find nested button UID
+- `findTweetElements(snapshot)` - Extract tweet refs
+- `findMoreButtonInTweet(snapshot, tweet)` - Find nested button ref
 - `findDeleteButton(snapshot)` - Find delete menu item
+- `findConfirmButton(snapshot)` - Find confirmation button ref
 
 ## Coding Guidelines
 
@@ -358,8 +359,8 @@ await scrollPage(150);
 ### Common User Issues
 
 **1. "It's not working"**
-- Check: Logged into X?
-- Check: Chrome DevTools MCP configured?
+- Check: Logged into X in Playwright browser?
+- Check: Playwright MCP configured?
 - Check: X changed UI recently?
 - Fallback: Suggest console script method
 
@@ -438,7 +439,7 @@ await scrollPage(150);
 **Watch for:**
 - X UI changes (will break selectors)
 - MCP API changes (may need updates)
-- Chrome DevTools protocol changes
+- Playwright API changes
 
 ## Maintenance
 

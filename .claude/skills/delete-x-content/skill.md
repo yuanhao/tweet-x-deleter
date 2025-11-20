@@ -4,7 +4,7 @@ Automate deletion of all posts, replies, and reposts from your X (Twitter) accou
 
 ## What This Does
 
-This skill uses Chrome DevTools browser automation to systematically delete:
+This skill uses Playwright browser automation to systematically delete:
 - **Posts** - All original tweets
 - **Replies** - All replies to other users
 - **Reposts** - All retweets/reposts
@@ -12,14 +12,15 @@ This skill uses Chrome DevTools browser automation to systematically delete:
 ## Prerequisites
 
 **Required:**
-- Chrome browser with MCP Chrome DevTools server configured
-- Active X (Twitter) account login in Chrome
-- Claude Code with chrome-devtools MCP integration
+- Playwright MCP server configured in Claude Code
+- Claude Code with playwright MCP integration
 
 **Recommended:**
 - Download your X archive first (backup your data)
 - Works best for accounts with <10,000 posts
 - Stable internet connection
+
+**Note:** Playwright opens a new browser window. You'll need to log into X when prompted.
 
 ## Safety Warnings
 
@@ -67,9 +68,10 @@ When invoked, guide the user through:
    - Confirm: Wait for explicit "yes" or "proceed"
 
 2. **Browser Setup:**
-   - Use `mcp__chrome-devtools__list_pages` to check open pages
-   - If X.com not open, use `mcp__chrome-devtools__new_page` to open https://x.com
-   - Verify user is logged in by checking for profile elements
+   - Use `mcp__playwright__browser_navigate` to open https://x.com
+   - Take a snapshot with `mcp__playwright__browser_snapshot` to verify page loaded
+   - Ask user to log in if not already logged in
+   - Wait for user confirmation that they're logged in
 
 3. **Get Username:**
    - Ask user for their X username (e.g., "@username")
@@ -91,22 +93,24 @@ When invoked, guide the user through:
 
 ## Automation Logic
 
-Use the following approach for deletion:
+Use the following approach for deletion with Playwright MCP:
 
 ```javascript
-// Pseudocode for automation flow
-async function deleteTweets(contentType) {
+// Pseudocode for automation flow using Playwright MCP
+async function deleteTweets(contentType, username) {
   let deletedCount = 0;
   let hasMore = true;
 
   // Navigate to correct tab
-  await navigateToTab(contentType); // /username, /username/with_replies, etc.
+  // mcp__playwright__browser_navigate({ url: `https://x.com/${username}${suffix}` })
+  await navigateToTab(contentType);
 
   while (hasMore) {
-    // Take snapshot
+    // Take snapshot - returns accessibility tree with ref attributes
+    // mcp__playwright__browser_snapshot()
     const snapshot = await takeSnapshot();
 
-    // Find tweet elements
+    // Find tweet elements by looking for article elements with refs
     const tweets = findTweetElements(snapshot);
 
     if (tweets.length === 0) {
@@ -114,42 +118,51 @@ async function deleteTweets(contentType) {
       break;
     }
 
-    for (const tweet of tweets) {
-      try {
-        // Find "More" button in tweet
-        const moreButton = findMoreButton(tweet);
+    // Process first tweet (others will shift up after deletion)
+    const tweet = tweets[0];
 
-        // Click More
-        await click(moreButton);
-        await delay(500);
+    try {
+      // Find "More" button (caret) ref in the tweet
+      const moreButtonRef = findMoreButtonRef(snapshot, tweet);
 
-        // Take new snapshot to find delete menu
-        const menuSnapshot = await takeSnapshot();
-        const deleteButton = findDeleteButton(menuSnapshot);
+      // Click More button using ref
+      // mcp__playwright__browser_click({ element: "More options", ref: moreButtonRef })
+      await click(moreButtonRef);
+      await delay(500);
 
-        // Click Delete
-        await click(deleteButton);
-        await delay(500);
+      // Take new snapshot to find delete menu item
+      const menuSnapshot = await takeSnapshot();
+      const deleteButtonRef = findDeleteButtonRef(menuSnapshot);
 
-        // Handle confirmation dialog
-        await handleDialog('accept');
-        await delay(1000);
+      // Click Delete menu item
+      // mcp__playwright__browser_click({ element: "Delete", ref: deleteButtonRef })
+      await click(deleteButtonRef);
+      await delay(500);
 
-        deletedCount++;
+      // Take snapshot to find confirmation button
+      const confirmSnapshot = await takeSnapshot();
+      const confirmButtonRef = findConfirmButtonRef(confirmSnapshot);
 
-        // Log progress every 10 deletions
-        if (deletedCount % 10 === 0) {
-          console.log(`Deleted ${deletedCount} ${contentType}...`);
-        }
+      // Click confirmation button
+      // mcp__playwright__browser_click({ element: "Delete confirmation", ref: confirmButtonRef })
+      await click(confirmButtonRef);
+      await delay(1000);
 
-      } catch (error) {
-        console.error(`Error deleting tweet: ${error.message}`);
-        // Continue to next tweet
+      deletedCount++;
+
+      // Log progress every 10 deletions
+      if (deletedCount % 10 === 0) {
+        console.log(`Deleted ${deletedCount} ${contentType}...`);
       }
+
+    } catch (error) {
+      console.error(`Error deleting tweet: ${error.message}`);
+      // Continue to next tweet
     }
 
     // Scroll to load more
-    await scrollPage(150);
+    // mcp__playwright__browser_evaluate({ function: "() => window.scrollBy(0, 300)" })
+    await scrollPage(300);
     await delay(3000);
   }
 
@@ -212,8 +225,8 @@ Provide user updates like:
 
 ## Alternative Approach
 
-If MCP Chrome DevTools automation has issues, provide user with console script alternative:
-- Share JavaScript snippet they can paste in DevTools Console
+If Playwright MCP automation has issues, provide user with console script alternative:
+- Share JavaScript snippet they can paste in browser DevTools Console
 - Less reliable but simpler fallback option
 - Reference: lucahammer's X deletion script (GitHub)
 
