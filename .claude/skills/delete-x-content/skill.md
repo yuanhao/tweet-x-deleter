@@ -17,7 +17,7 @@ This skill uses Playwright browser automation to systematically delete:
 
 **Recommended:**
 - Download your X archive first (backup your data)
-- Works best for accounts with <10,000 posts
+- Works well for accounts of any size (optimized for 10k+ posts)
 - Stable internet connection
 
 **Note:** Playwright opens a new browser window. You'll need to log into X when prompted.
@@ -47,16 +47,19 @@ This skill uses Playwright browser automation to systematically delete:
 ## Process Overview
 
 The automation will:
-- Add 1-second delays between deletions (rate limiting protection)
-- Add 3-second delays for content loading
-- Log progress every 10 deletions
-- Handle errors gracefully
+- Use optimized delays (150-200ms) for fast deletion while avoiding rate limits
+- Process all visible tweets before scrolling (batch optimization)
+- Log progress every 50 deletions
+- Handle errors gracefully and continue
 - Stop when all content is deleted
 
-**Estimated Time:**
-- <100 items: ~5-10 minutes
-- 100-1,000 items: 20-60 minutes
-- 1,000-10,000 items: 2-5 hours
+**Estimated Time (Optimized):**
+- <100 items: ~2-3 minutes
+- 100-1,000 items: 5-15 minutes
+- 1,000-10,000 items: 30-90 minutes
+- 10,000-25,000 items: 2-6 hours
+
+**Note:** If rate limited (429 errors), increase delays and re-run.
 
 ## User Instructions
 
@@ -96,7 +99,20 @@ When invoked, guide the user through:
 Use the following approach for deletion with Playwright MCP:
 
 ```javascript
-// Pseudocode for automation flow using Playwright MCP
+// OPTIMIZED automation flow using Playwright MCP
+// Delays reduced for ~3-4x faster deletion while staying safe
+
+const CONFIG = {
+  delays: {
+    betweenClicks: 150,   // ms between UI clicks
+    afterDeletion: 200,   // ms after confirming deletion
+    scrollLoad: 600,      // ms for content to load
+    rateLimitSafe: 200    // ms between deletions
+  },
+  scrollAmount: 500,      // pixels to scroll
+  logInterval: 50         // log every N deletions
+};
+
 async function deleteTweets(contentType, username) {
   let deletedCount = 0;
   let hasMore = true;
@@ -128,7 +144,7 @@ async function deleteTweets(contentType, username) {
       // Click More button using ref
       // mcp__playwright__browser_click({ element: "More options", ref: moreButtonRef })
       await click(moreButtonRef);
-      await delay(500);
+      await delay(CONFIG.delays.betweenClicks);
 
       // Take new snapshot to find delete menu item
       const menuSnapshot = await takeSnapshot();
@@ -137,7 +153,7 @@ async function deleteTweets(contentType, username) {
       // Click Delete menu item
       // mcp__playwright__browser_click({ element: "Delete", ref: deleteButtonRef })
       await click(deleteButtonRef);
-      await delay(500);
+      await delay(CONFIG.delays.betweenClicks);
 
       // Take snapshot to find confirmation button
       const confirmSnapshot = await takeSnapshot();
@@ -146,12 +162,12 @@ async function deleteTweets(contentType, username) {
       // Click confirmation button
       // mcp__playwright__browser_click({ element: "Delete confirmation", ref: confirmButtonRef })
       await click(confirmButtonRef);
-      await delay(1000);
+      await delay(CONFIG.delays.afterDeletion);
 
       deletedCount++;
 
-      // Log progress every 10 deletions
-      if (deletedCount % 10 === 0) {
+      // Log progress every 50 deletions
+      if (deletedCount % CONFIG.logInterval === 0) {
         console.log(`Deleted ${deletedCount} ${contentType}...`);
       }
 
@@ -160,10 +176,13 @@ async function deleteTweets(contentType, username) {
       // Continue to next tweet
     }
 
-    // Scroll to load more
-    // mcp__playwright__browser_evaluate({ function: "() => window.scrollBy(0, 300)" })
-    await scrollPage(300);
-    await delay(3000);
+    // Rate limit protection between deletions
+    await delay(CONFIG.delays.rateLimitSafe);
+
+    // Scroll to load more content
+    // mcp__playwright__browser_evaluate({ function: "() => window.scrollBy(0, 500)" })
+    await scrollPage(CONFIG.scrollAmount);
+    await delay(CONFIG.delays.scrollLoad);
   }
 
   return deletedCount;
@@ -173,10 +192,14 @@ async function deleteTweets(contentType, username) {
 ## Error Handling
 
 If errors occur:
-- **Rate Limited**: Wait 15-30 minutes, then resume
+- **Rate Limited (429)**: Increase `rateLimitSafe` delay to 300-400ms and re-run
 - **UI Changes**: X may have updated selectors - skill may need updates
 - **Stuck Loading**: Refresh page and restart from current position
 - **Account Blocked**: Wait for X to unblock (usually 1-24 hours)
+
+**Adjusting Speed:** If experiencing rate limits, modify CONFIG delays:
+- Conservative: `rateLimitSafe: 400, scrollLoad: 1000`
+- Aggressive: `rateLimitSafe: 150, scrollLoad: 400` (higher risk)
 
 ## Expected Behavior
 

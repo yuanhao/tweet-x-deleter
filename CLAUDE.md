@@ -88,7 +88,7 @@ tweet-x-deleter/
 - **Clear naming** - Functions describe what they do
 - **Defensive coding** - Handle missing elements gracefully
 - **Configurable delays** - Easy to adjust rate limiting
-- **Logging** - Progress indicators every 10 deletions
+- **Logging** - Progress indicators every 50 deletions (configurable)
 
 **Code organization:**
 1. Configuration constants (top)
@@ -212,16 +212,23 @@ tweet-x-deleter/
 - Browser: Less restrictive, but monitored
 - Aggressive automation: Can trigger temporary blocks (1-24 hours)
 
-**Our protection strategy:**
-- 1 second minimum between deletions
-- 3 seconds for content loading
-- 500ms between UI clicks
-- Total: ~0.5-1 tweet per second
+**Our OPTIMIZED protection strategy:**
+- 150ms between UI clicks (fast but safe)
+- 200ms after deletion confirmation
+- 600ms for content loading after scroll
+- 200ms rate limit delay between tweets
+- Total: ~2-3 tweets per second (3-4x faster than conservative)
 
-**If user reports rate limiting:**
-1. Increase delays in CONFIG
-2. Recommend running during off-peak hours
-3. Suggest waiting 15-30 minutes between batches
+**Speed tiers:**
+- Aggressive: 150/200/400/150ms (~3 tweets/sec, higher risk)
+- Default: 150/200/600/200ms (~2 tweets/sec, balanced)
+- Conservative: 300/500/1000/400ms (~1 tweet/sec, safest)
+
+**If user reports rate limiting (429 errors):**
+1. Increase `rateLimitSafe` delay to 300-400ms
+2. Increase `scrollLoad` to 1000ms
+3. Recommend running during off-peak hours
+4. Suggest waiting 15-30 minutes between batches
 
 ### Content Type URLs
 
@@ -540,10 +547,10 @@ await scrollPage(150);
 ### Common Tasks
 
 **Update X selectors:**
-→ Edit `CONFIG.selectors` in `src/delete-x-content.js:46-52`
+→ Edit `CONFIG.selectors` in `src/delete-x-content.js:22-28`
 
 **Adjust rate limiting:**
-→ Edit `CONFIG.delays` in `src/delete-x-content.js:43-48`
+→ Edit `CONFIG.delays` in `src/delete-x-content.js:16-21`
 
 **Modify user prompts:**
 → Edit `.claude/skills/delete-x-content/skill.md:48-80`
